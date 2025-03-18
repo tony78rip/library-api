@@ -29,7 +29,7 @@ if (($_SERVER["REQUEST_METHOD"] === "POST") && isset($_POST["submit"])) {
 
 
                 // verification d'un email quin'existe pas déja
-                $sql = "SELECT * FROM users WHERE email = ?";
+                $sql = "SELECT * FROM user WHERE email = ?";
 
                 $stmt = $PDO->prepare($sql);
                 $stmt->execute([$email]);

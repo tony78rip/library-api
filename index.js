@@ -18,31 +18,35 @@ submit.addEventListener(`click`, () => {
 
 })
 
-function displayMovies(books) {
-    if (books.length) {
-        
+function displayBooks(books) {
+    resultsContainer.innerHTML = ""; // Réinitialisation de l'affichage
+
+    if (books && books.length > 0) {
         books.forEach(book => {
-    
-            // Je crée les éléments HTML pour afficher chaque livre
-            let container = document.createElement("div")
-            let title = document.createElement("h2")
-            let image = document.createElement("img")
+            const bookCard = document.createElement('div');
+            bookCard.classList.add('book-card');
 
+            const title = document.createElement('h2');
+            title.textContent = book.volumeInfo.title || "Titre inconnu";
+            bookCard.appendChild(title);
 
-    
-            // Je donne du contenu texte a mes éléménts HTML (et une source à mon image)
-            title.textContent = book.volumeinfo.Title
-            image.src = book.volumeinfo.imageLinks
+            const img = document.createElement('img');
+            img.src = book.volumeInfo.imageLinks ? book.volumeInfo.imageLinks.thumbnail : 'https://via.placeholder.com/128x192';
+            img.alt = book.volumeInfo.title;
+            bookCard.appendChild(img);
 
-            // Je regroupe mes éléments HTML pour chaque film dans un container (ou un wrapper / card)
-            container.append(image, title)
-    
-            // J'insère le container dans ma zone de resultats (dans le HTLM)
-            results.appendChild(container)
-        })  
+            // Création du bouton Favori
+            const favBtn = document.createElement('button');
+            favBtn.textContent = isBookInFavs(book.id) ? "Retirer des favoris" : "Ajouter aux favoris";
+            favBtn.addEventListener("click", () => toggleFav(book, favBtn));
+            bookCard.appendChild(favBtn);
 
+            resultsContainer.appendChild(bookCard);
+        });
     } else {
-        results.innerHTML = "Aucun films à afficher"
+        resultsContainer.innerHTML = "<p>Aucun livre trouvé.</p>";
     }
 }
+
+
 

@@ -1,4 +1,5 @@
-<?php include "./Config/pdo.php"; ?>
+<?php require 'Config/pdo.php';
+?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -6,28 +7,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>le troisième oeil</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="books.css">
     <script defer src="index.js" ></script>
 </head>
 
 <header>
-    <h1>le troisième oeil</h1>
     <nav>
+        <h1>le troisième oeil</h1>
         <div class="logo">
-        <img src="#" alt="logo.png">
+        <a href="#"><img src="#" alt="logo.png"></a>
         </div>
-
-        <input  class="search" type="text" placeholder="chercher votre prochaine lecture...">
-        <button class="searchBtn">Rechercher</button>
+        <div class="connexion">
+         <button><a href="./login.php">account</a></button>
+        </div>
     </nav>
 </header>
 
-<body>
-<div class="input-part">
 
-</div>
-
-<div class = "results">
-
-</div>
-    

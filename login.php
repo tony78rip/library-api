@@ -1,131 +1,141 @@
 <?php 
 
-    ob_start();
+include "./Config/pdo.php";
+include "partials/header.php";
+$cookie_duration=60*60*24*7;
+$message = '';
 
-    include "utils/functions.php";
-    // ici on inclu une connexion a la BDD
-    include "partials/header.php";
-    include "config/PDO.php";
 
-    // ici on va venir vérifier que les données du form sont bien conformes (Une fois le form soumis)
-    // Si un des champs n'est pas rempli on affiche une erreur 
-    // Si l'email n'est pas au bon format on affiche une erreur 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submit = $_POST['submit'];
 
-    // On vérifie que le form ait bien été soumis avec POST
-    if (($_SERVER["REQUEST_METHOD"] === "POST") && isset($_POST["submit"])) {
+    if ($submit === 'signup') {
+        $username = trim($_POST['username']);
+        $email = trim($_POST['email']);
+        $password = $_POST['mdp'];
 
-        //verification des champs (savoir si ils sont remplis) 
-        if (!empty($_POST["email"]) && (!empty($_POST["password"]))) {
-
-            // $regexPassword = "/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$ %^&*-]).{12,}$/i"; 
-
-            // Vérification de l'email (si il est au bon format)
-            if (!filter_var($_POST["email"], FILTER_VALIDATE_EMAIL)) {
-
-                $error = "L'email n'est pas au bon format";
-
-            // Vérification du mot de passe (minium 12 caractères dont une maj, une min, un chiffre et un special char, du a la réglementation de la CNIL)
-            // } else if (!preg_match($regexPassword, $_POST["password"])) {
-
-            //     $error = "Le mot de passe doit contenir au moins 12 caractères et respecter les règles de la CNIL";
-            
-            // } else {   
-
+if (!empty($username) && !empty($email) && !empty($password)) {
+    if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Vérification du mot de passe avec une expression régulière
+        $password_regex = '/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{7,}$/';
+        
+        if (preg_match($password_regex, $password)) {
+            // Vérification de l'existence de l'utilisateur
+            $stmt = $pdo->prepare("SELECT * FROM user WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($stmt->rowCount() > 0) {
+                echo "Un compte avec cet email existe déjà.";
             } else {
-
-                $email = $_POST["email"];
-                $password = $_POST["password"];
-
-                
-                // j'effectue une requete préparée avec $PDO qui est définit dans mon fichier PDO.php
-                // et qui est importé plus haut sur cette page  
-                $sql = "SELECT * FROM users WHERE email = ?";
-                $stmt = $PDO->prepare($sql);
-                $stmt->execute([$email]);
-
-                // je recupere les potentiel resultats 
-                $result = $stmt->fetch();
-
-                if ($result) {
-                    $password_hash = $result["password_hash"];
-
-                    if (password_verify($password, $password_hash)) {
-
-                      //session démarer
-                      session_start();
-
-                      //  ici on recupere les information du user de la BDD et on les mets dans le tableau de session 
-                      $_SESSION = $result;
-
-                      // redretion de l'utilisateur vers la home page
-                      header("Location: index.php");
-
-                      // A l'aide d'un buffer on retarde l'éxecution du bloc de code pour éviter les erreurs due à l'envoi 
-                      // mofification des headers 
-                      ob_flush();
-                      
-                    } else {
-                      $error = "Le mot de passe n'est pas le bon";
-                    }
-                    
+                // Inscription
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO user (username, email, mdp) VALUES (?, ?, ?)");
+                if ($stmt->execute([$username, $email, $password_hash])) {
+                    echo "Inscription réussie. <a href='login.php'>Connectez-vous</a>";
                 } else {
-                    $error = "Aucun utilisateur trouvé avec cette email";
+                    echo "Erreur lors de l'inscription.";
                 }
             }
-
-        //sinon si les champs sont vide
         } else {
-            $error = "Veuillez remplir tous les champs";
+            echo "Le mot de passe doit contenir au moins 7 caractères, dont une majuscule, une minuscule, et un chiffre.";
+        }
+    } else {
+        echo "Adresse e-mail invalide.";
+    }
+} else {
+    echo "Tous les champs sont requis.";
+}
+
+    } elseif ($submit === 'login') {
+        $email = trim($_POST['email']);
+        $password = $_POST['mdp'];
+
+        if (!empty($email) && !empty($password)) {
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $stmt = $pdo->prepare("SELECT * FROM user WHERE Email = ?");
+                $stmt->execute([$email]);
+                $user = $stmt->fetch();
+
+                if ($user && password_verify($password, $user['mdp'])) {
+                    setcookie('session', $cookie_value, [
+                        'expires' => time() + $cookie_duration,
+                        'path' => '/',
+                        'secure' => true,
+                        'httponly' => true,
+                        'samesite' => 'Strict'
+                    ]);
+                    $user_id = $user['id'];
+
+                    $stmt = $pdo->prepare("UPDATE user SET session_cookie = ? WHERE id = ?");
+                    $stmt->execute([$cookie_value, $user_id]);
+
+                    setcookie('session', $cookie_value, time() + $cookie_duration, "/", "", false, true);
+
+                    $message = "Connexion réussie. Bienvenue, " . htmlspecialchars($user['user']) . "!";
+					header('Location: ' . $_SERVER['HTTP_REFERER']);
+
+                } else {
+                    $message = "Email ou mot de passe incorrect.";
+                }
+            } else {
+                $message = "Adresse e-mail invalide.";
+            }
+        } else {
+            $message = "Tous les champs sont requis.";
         }
     }
+} ?>
+
+<?php
+require 'Config/pdo.php';
+
+// Durée du cookie en secondes (7 jours)
+$cookie_duration = 7 * 24 * 60 * 60;
+
+// Vérifier si une session utilisateur est active via le cookie
+$user = null; // Variable pour stocker les données utilisateur
+if (isset($_COOKIE['session'])) {
+    $stmt = $pdo->prepare("SELECT * FROM user WHERE session_cookie = ?");
+    $stmt->execute([$_COOKIE['session']]);
+    $user = $stmt->fetch();
+}
+
+?>
+
+    <?php if ($user): ?><section>
+		<div style="display: flex;justify-content:center;padding-top:2%;flex-direction: column;">
+
+        <div class="hub">
+            <h2>Bienvenue, <?= htmlspecialchars($user['user']); ?> !</h2>
+            <p>Vous êtes connecté. Bienvenue dans votre hub utilisateur.</p>
+            <a href="./partials/logout.php" class="logout-btn">Se déconnecter</a>
+        </div><hr>
 
 
-?> 
+    <?php else: ?>
+		
+        <!-- Formulaire d'inscription et de connexion -->
+		 <div style="margin: auto;display: flex;justify-content: center;padding-top:2%">
+		 <div class="main">
+        <input type="checkbox" id="chk" aria-hidden="true">
 
-<div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
-  <div class="sm:mx-auto sm:w-full sm:max-w-sm">
-    <h2 class="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">Sign in</h2>
-  </div>
-
-  <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-
-    // la on a le formulaire du login
-    <form class="space-y-6" action="#" method="POST">
-
-      <div>
-        <label for="email" class="block text-sm/6 font-medium text-gray-900">Email address</label>
-        <div class="mt-2">
-          <input type="text" name="email" id="email" autocomplete="email"  class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6">
+        <div class="signup">
+            <form method="POST">
+                <label for="chk" aria-hidden="true">Sign up</label>
+                <input type="text" name="username" placeholder="User name" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="mdp" placeholder="Password" required>
+                <button type="submit" name="submit" value="signup">Sign up</button>
+            </form>
         </div>
-      </div>
 
-      <div>
-        <div class="flex items-center justify-between">
-          <label for="password" class="block text-sm/6 font-medium text-gray-900">Password</label>
-
+        <div class="login">
+            <form method="POST">
+                <label for="chk" aria-hidden="true">Login</label>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="mdp" placeholder="Password" required>
+                <button type="submit" name="submit" value="login">Login</button>
+            </form>
         </div>
-        <div class="mt-2">
-          <input type="password" name="password" id="password" autocomplete="current-password"  class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6">
-        </div>
-      </div>
 
-      <div>
-        <button type="submit" name="submit" class="flex w-full justify-center rounded-md bg-blue-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Sign in</button>
-      </div>
-      
-    </form>
-
-    <?php if (isset($error)) : ?>
-
-        <p class="text-red-700"><?= $error ?></p>
-
-    <?php endif ?>
-
-  </div>
+    <?php endif; ?>
 </div>
-
-<?php 
-
-    include "partials/footer.php"
-
-?> 
